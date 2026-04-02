@@ -81,7 +81,14 @@ export class SpikeManager {
   ): WallSpike[] {
     const margin = 150;
     const available = this.H - margin * 2;
-    const { minSafeGap, minSpacing, width: spikeWidth } = GameSettings.spike;
+    const {
+      minSafeGap: baseSafeGap,
+      minSpacing: baseSpacing,
+      width: spikeWidth,
+    } = GameSettings.spike;
+    // Scale constraints down for 4 spikes so they still fit with a guaranteed gap
+    const minSafeGap = count >= 4 ? 200 : baseSafeGap;
+    const minSpacing = count >= 4 ? 120 : baseSpacing;
     // Exclusion zone around the orb so spikes don’t spawn on top of the player
     const excludeHalf = GameSettings.orb.radius * 4;
     // Minimum distance from any previous spike position to force visible variation
@@ -184,6 +191,7 @@ export class SpikeManager {
     const t = GameSettings.difficulty.thresholds;
     if (score < t[0]) this.currentSpikeCount = 1;
     else if (score < t[1]) this.currentSpikeCount = 2;
+    else if (score < t[2]) this.currentSpikeCount = 3;
     else this.currentSpikeCount = GameSettings.difficulty.maxSpikeCount;
   }
 
