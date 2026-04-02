@@ -161,7 +161,7 @@ export class GameScene extends Phaser.Scene {
     this.orb.vy = 0;
 
     // Reset systems
-    this.spikes.currentSpikeCount = 1;
+    this.spikes.currentSpikeCount = 2;
     this.spikes.generateAll();
     this.particles.clearAll();
     this.bumpers.generate(0); // no bumpers at start
@@ -173,6 +173,9 @@ export class GameScene extends Phaser.Scene {
     this.countdownNumber = 3;
     this.countdownScale = 1;
     this.started = true;
+
+    // Play first countdown tick ("3")
+    this.synth.playCountdownTick(0);
   }
 
   /** Called when countdown finishes — actually launches gameplay. */
@@ -214,7 +217,12 @@ export class GameScene extends Phaser.Scene {
       this.countdownNumber--;
       this.countdownScale = 1.4;
       if (this.countdownNumber <= 0) {
+        // Play "GO!" sound
+        this.synth.playCountdownGo();
         this.launchPlay();
+      } else {
+        // Play tick for 2, 1  (step 1, 2 = ascending pitch)
+        this.synth.playCountdownTick(3 - this.countdownNumber);
       }
     }
 

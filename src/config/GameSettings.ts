@@ -61,8 +61,8 @@ export const GameSettings = {
 
   // ── Difficulty progression ───────────────────────────
   difficulty: {
-    /** Score thresholds: 1→2→3→4 spikes per wall */
-    thresholds: [4, 10, 18] as readonly number[],
+    /** Score thresholds: 2→3→4 spikes per wall (always starts at 2) */
+    thresholds: [6, 14] as readonly number[],
     maxSpikeCount: 4,
   },
 

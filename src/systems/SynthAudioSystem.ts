@@ -288,6 +288,106 @@ export class SynthAudioSystem {
     osc.stop(startTime + 0.55);
   }
 
+  /* ── Countdown sounds ───────────────────────────── */
+
+  /**
+   * Short ascending beep for countdown numbers (3, 2, 1).
+   * Higher pitch each step to build anticipation.
+   */
+  playCountdownTick(step: number): void {
+    if (this.muted) return;
+    if (!this.ensureContext()) return;
+
+    const ctx = this.ctx!;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const now = ctx.currentTime;
+    // Ascending pitch: 3→440Hz, 2→554Hz, 1→659Hz
+    const freqs = [440, 554.37, 659.25];
+    const freq = freqs[Math.min(step, freqs.length - 1)];
+
+    // Clean sine beep
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(0.3, now + 0.015);
+    env.gain.exponentialRampToValueAtTime(0.08, now + 0.12);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(env);
+    env.connect(this.masterGain!);
+
+    osc.onended = () => {
+      osc.disconnect();
+      env.disconnect();
+    };
+    osc.start(now);
+    osc.stop(now + 0.4);
+  }
+
+  /**
+   * Bright rising "GO!" sound — chord burst with shimmer.
+   */
+  playCountdownGo(): void {
+    if (this.muted) return;
+    if (!this.ensureContext()) return;
+
+    const ctx = this.ctx!;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const now = ctx.currentTime;
+    // Major chord burst: C5-E5-G5
+    const goFreqs = [523.25, 659.25, 783.99];
+
+    for (let i = 0; i < goFreqs.length; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = i === 0 ? "sawtooth" : "triangle";
+      osc.frequency.setValueAtTime(goFreqs[i], now);
+      osc.frequency.linearRampToValueAtTime(goFreqs[i] * 1.02, now + 0.15);
+
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(0.18, now + 0.02);
+      env.gain.exponentialRampToValueAtTime(0.06, now + 0.2);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+      osc.connect(env);
+      env.connect(this.filterNode!);
+      env.connect(this.convolver!);
+
+      osc.onended = () => {
+        osc.disconnect();
+        env.disconnect();
+      };
+      osc.start(now + i * 0.02);
+      osc.stop(now + 0.65);
+    }
+
+    // High shimmer sweep
+    const sweep = ctx.createOscillator();
+    sweep.type = "sine";
+    sweep.frequency.setValueAtTime(1200, now);
+    sweep.frequency.exponentialRampToValueAtTime(2400, now + 0.15);
+
+    const sEnv = ctx.createGain();
+    sEnv.gain.setValueAtTime(0, now);
+    sEnv.gain.linearRampToValueAtTime(0.08, now + 0.03);
+    sEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    sweep.connect(sEnv);
+    sEnv.connect(this.masterGain!);
+
+    sweep.onended = () => {
+      sweep.disconnect();
+      sEnv.disconnect();
+    };
+    sweep.start(now);
+    sweep.stop(now + 0.45);
+  }
+
   /* ── Cleanup ────────────────────────────────────── */
 
   destroy(): void {

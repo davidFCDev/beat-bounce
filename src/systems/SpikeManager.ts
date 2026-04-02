@@ -28,7 +28,7 @@ export class SpikeManager {
   leftSpikes: WallSpike[] = [];
   rightSpikes: WallSpike[] = [];
   bottomSpikes: BottomSpike[] = [];
-  currentSpikeCount = 1;
+  currentSpikeCount = 2;
 
   /** Previous Y positions per wall — used to force variation on regeneration. */
   private prevLeftYs: number[] = [];
@@ -92,11 +92,12 @@ export class SpikeManager {
     // Exclusion zone around the orb so spikes don’t spawn on top of the player
     const excludeHalf = GameSettings.orb.radius * 4;
     // Minimum distance from any previous spike position to force visible variation
-    const MIN_SHIFT = 120;
+    // Scale down for more spikes so the algorithm can always find valid positions
+    const MIN_SHIFT = count >= 4 ? 60 : count >= 3 ? 80 : 120;
     const spikes: WallSpike[] = [];
 
     let attempts = 0;
-    while (attempts < 150) {
+    while (attempts < 200) {
       attempts++;
       spikes.length = 0;
       for (let i = 0; i < count; i++) {
@@ -120,10 +121,17 @@ export class SpikeManager {
         }
       }
       // Force noticeable variation from previous spike positions
+      // After many failed attempts, relax this constraint progressively
       if (valid && prevYs && prevYs.length > 0) {
+        const relaxedShift =
+          attempts > 140
+            ? MIN_SHIFT * 0.25
+            : attempts > 100
+              ? MIN_SHIFT * 0.5
+              : MIN_SHIFT;
         for (const s of spikes) {
           for (const py of prevYs) {
-            if (Math.abs(s.y - py) < MIN_SHIFT) {
+            if (Math.abs(s.y - py) < relaxedShift) {
               valid = false;
               break;
             }
@@ -151,13 +159,52 @@ export class SpikeManager {
       if (valid && hasLargeGap) return spikes;
     }
 
-    // Fallback – evenly spaced, shifted from previous
+    // Fallback – randomized with only spacing + safe-gap constraints (no prev shift)
+    spikes.length = 0;
+    for (let fb = 0; fb < 50; fb++) {
+      spikes.length = 0;
+      for (let i = 0; i < count; i++) {
+        spikes.push({
+          y: margin + Math.random() * available,
+          height: spikeWidth,
+        });
+      }
+      spikes.sort((a, b) => a.y - b.y);
+      let ok = true;
+      let gap = false;
+      if (excludeY !== undefined) {
+        for (const s of spikes) {
+          if (Math.abs(s.y - excludeY) < excludeHalf) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      if (ok) {
+        for (let i = 1; i < spikes.length; i++) {
+          const g = spikes[i].y - spikes[i - 1].y - spikeWidth;
+          if (g < minSpacing) {
+            ok = false;
+            break;
+          }
+          if (g >= minSafeGap) gap = true;
+        }
+        if (spikes[0].y - spikeWidth / 2 >= minSafeGap) gap = true;
+        if (
+          this.H - (spikes[spikes.length - 1].y + spikeWidth / 2) >=
+          minSafeGap
+        )
+          gap = true;
+      }
+      if (ok && gap) return spikes;
+    }
+    // Last resort – evenly spaced with random jitter
     spikes.length = 0;
     const spacing = available / (count + 1);
-    const offset = prevYs && prevYs.length > 0 ? spacing * 0.5 : 0;
     for (let i = 0; i < count; i++) {
+      const jitter = (Math.random() - 0.5) * spacing * 0.4;
       spikes.push({
-        y: margin + spacing * (i + 1) + offset,
+        y: margin + spacing * (i + 1) + jitter,
         height: spikeWidth,
       });
     }
@@ -189,9 +236,8 @@ export class SpikeManager {
 
   updateDifficulty(score: number): void {
     const t = GameSettings.difficulty.thresholds;
-    if (score < t[0]) this.currentSpikeCount = 1;
-    else if (score < t[1]) this.currentSpikeCount = 2;
-    else if (score < t[2]) this.currentSpikeCount = 3;
+    if (score < t[0]) this.currentSpikeCount = 2;
+    else if (score < t[1]) this.currentSpikeCount = 3;
     else this.currentSpikeCount = GameSettings.difficulty.maxSpikeCount;
   }
 
