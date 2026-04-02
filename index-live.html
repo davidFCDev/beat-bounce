@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beat Bounce</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>:root {
+            --transition-fast: 150ms;
+            --transition-normal: 300ms;
+            --ease-out: cubic-bezier(0.0, 0, 0.2, 1);
+            --ease-bounce: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+        }
+
+body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: "Inter", sans-serif;
+        }
+
+#game-world {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #0a0a0a;
+        }
+
+#game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: manipulation;
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+/* UI Overlay */
+
+.ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            touch-action: none;
+        }
+
+.ui-overlay > * {
+            pointer-events: auto;
+        }
+
+/* Score Display */
+
+.score-display { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-family: "Orbitron", sans-serif; font-size: 72px; font-weight: 700; color: #fff; text-shadow: 0 0 20px rgba(0, 255, 255, 0.8),
+                         0 0 40px rgba(0, 255, 255, 0.4); pointer-events: none; z-index: 10; }
+
+.high-score { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); font-family: "Orbitron", sans-serif; font-size: 24px; color: rgba(255, 255, 255, 0.6); text-shadow: 0 0 10px rgba(0, 255, 255, 0.4); pointer-events: none; z-index: 10; letter-spacing: 1px; display: none; }
+
+/* Start Screen */
+
+.start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding-top: 280px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 10, 0.9);
+            z-index: 100;
+            transition: opacity var(--transition-normal) var(--ease-out);
+        }
+
+.start-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+.game-title { font-family: "Orbitron", sans-serif; font-size: 80px; font-weight: 700; color: #39FF14; text-shadow: 0 0 30px rgba(57, 255, 20, 0.8),
+                         0 0 60px rgba(57, 255, 20, 0.4); margin-bottom: 20px; text-align: center; }
+
+.game-instructions { font-family: "Inter", sans-serif; font-size: 18px; font-weight: 400; color: rgba(255, 255, 255, 0.85); text-shadow: 0 0 15px rgba(57, 255, 20, 0.4); margin-top: 30px; text-align: center; letter-spacing: 1px; line-height: 1.5; }
+
+.tap-to-start {
+            position: absolute;
+            bottom: 200px;
+            font-family: "Inter", sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            animation: pulse 1.5s ease-in-out infinite;
+            letter-spacing: 2px;
+        }
+
+@keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+@media (prefers-reduced-motion: reduce) {
+            .tap-to-start,
+            .tap-to-restart {
+                animation: none;
+                opacity: 0.9;
+            }
+        }
+
+/* Death Screen */
+
+.death-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding-top: 180px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 10, 0.85);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition-normal) var(--ease-out);
+        }
+
+.death-screen.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+.game-over-text {
+            font-family: "Orbitron", sans-serif;
+            font-size: 44px;
+            font-weight: 700;
+            color: #FF0044;
+            text-shadow: 0 0 30px rgba(255, 0, 68, 0.8),
+                         0 0 60px rgba(255, 0, 68, 0.4);
+            margin-bottom: 30px;
+        }
+
+.final-score {
+            font-family: "Orbitron", sans-serif;
+            font-size: 72px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+            margin-bottom: 10px;
+        }
+
+.new-high-score {
+            font-family: "Inter", sans-serif;
+            font-size: 24px;
+            color: #FFD700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            margin-bottom: 40px;
+            opacity: 0;
+            transition: opacity var(--transition-normal);
+        }
+
+.new-high-score.visible {
+            opacity: 1;
+        }
+
+.tap-to-restart {
+            position: absolute;
+            bottom: 80px;
+            font-family: "Inter", sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            animation: pulse 1.5s ease-in-out infinite;
+            letter-spacing: 2px;
+        }
+
+/* Leaderboard Styles */
+
+.leaderboard-container {
+            margin-top: 40px;
+            width: 500px;
+            max-width: 90%;
+        }
+
+.leaderboard-title { font-family: "Orbitron", sans-serif; font-size: 32px; font-weight: 700; color: #39FF14; text-shadow: 0 0 20px rgba(57, 255, 20, 0.8); text-align: center; margin-bottom: 20px; letter-spacing: 3px; }
+
+.leaderboard-entries {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+.leaderboard-entries::-webkit-scrollbar {
+            width: 8px;
+        }
+
+.leaderboard-entries::-webkit-scrollbar-track {
+            background: rgba(20, 20, 30, 0.3);
+            border-radius: 4px;
+        }
+
+.leaderboard-entries::-webkit-scrollbar-thumb {
+            background: rgba(57, 255, 20, 0.4);
+            border-radius: 4px;
+        }
+
+.leaderboard-entries::-webkit-scrollbar-thumb:hover {
+            background: rgba(57, 255, 20, 0.6);
+        }
+
+.leaderboard-entry { display: flex; align-items: center; padding: 12px 20px; background: rgba(20, 20, 30, 0.8); border: 1px solid rgba(176, 38, 255, 0.2); border-radius: 8px; font-family: "Inter", sans-serif; transition: all var(--transition-fast) var(--ease-out); }
+
+.leaderboard-entry:hover { background: rgba(20, 20, 30, 0.95); border-color: rgba(176, 38, 255, 0.4); }
+
+.leaderboard-entry.current-player {
+            background: rgba(57, 255, 20, 0.15);
+            border: 2px solid rgba(57, 255, 20, 0.6);
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+        }
+
+.leaderboard-rank {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFD700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+            min-width: 40px;
+            text-align: center;
+        }
+
+.leaderboard-entry.rank-1 .leaderboard-rank {
+            color: #FFD700;
+            font-size: 24px;
+        }
+
+.leaderboard-entry.rank-2 .leaderboard-rank {
+            color: #C0C0C0;
+        }
+
+.leaderboard-entry.rank-3 .leaderboard-rank {
+            color: #CD7F32;
+        }
+
+.leaderboard-player { flex: 1; font-size: 20px; font-weight: 600; color: #ffffff; margin-left: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.leaderboard-entry.current-player .leaderboard-player { color: #ffffff; text-shadow: 0 0 8px rgba(57, 255, 20, 0.6); }
+
+.leaderboard-score { font-size: 20px; font-weight: 700; color: #ffffff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.4); margin-left: 16px; }
+
+.leaderboard-entry.current-player .leaderboard-score { color: #ffffff; text-shadow: 0 0 12px rgba(255, 255, 255, 0.6); }
+
+.leaderboard-loading {
+            text-align: center;
+            font-family: "Inter", sans-serif;
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 20px;
+        }
+
+.leaderboard-error {
+            text-align: center;
+            font-family: "Inter", sans-serif;
+            font-size: 14px;
+            color: rgba(255, 0, 68, 0.8);
+            padding: 20px;
+        }
+
+/* Decorative separator */
+
+.score-separator {
+            width: 120px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.6), transparent);
+            margin: 24px 0;
+        }
+
+.death-separator {
+            width: 120px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255, 0, 68, 0.6), transparent);
+            margin: 24px 0;
+        }</style>
+</head>
+<body>
+    <div id="game-world">
+        <canvas id="game-canvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="score-display" id="score-display">0</div>
+            <div class="high-score" id="high-score-display">BEST: 0</div>
+        </div>
+
+        <div class="start-screen" id="start-screen">
+            <div class="game-title">BEAT<br>BOUNCE</div>
+            <div class="score-separator"></div>
+            <div class="game-instructions">Press space or tap to jump<br>and dodge the spikes</div>
+            <div class="tap-to-start">TAP TO START</div>
+        </div>
+
+        <div class="death-screen" id="death-screen">
+            <div class="game-over-text">GAME OVER</div>
+            <div class="death-separator"></div>
+            <div class="final-score" id="final-score">0</div>
+            <div class="new-high-score" id="new-high-score">NEW HIGH SCORE!</div>
+            
+            <div class="leaderboard-container" id="leaderboard-container">
+                <div class="leaderboard-title">TOP 10</div>
+                <div class="leaderboard-entries" id="leaderboard-entries">
+                    <div class="leaderboard-loading">Loading leaderboard...</div>
+                </div>
+            </div>
+            
+            <div class="tap-to-restart">TAP TO RESTART</div>
+        </div>
+    </div>
+
+    <script>
+        /*
+         * BEAT BOUNCE
+         * A rhythm-based survival game where a glowing orb bounces between walls.
+         * Tap to jump and avoid dynamically repositioning spikes.
+         * Each wall bounce marks a beat - feel the rhythm to survive!
+         */
+
+        async function run(mode) {
+            // ==================== CONSTANTS ====================
+            const CANVAS_WIDTH = 720;
+            const CANVAS_HEIGHT = 1280;
+            const WALL_WIDTH = 15;
+            const ORB_RADIUS = 35;
+            const SPIKE_LENGTH = 70;
+            const SPIKE_WIDTH = 50;
+            const MIN_SAFE_GAP = 220;
+            const MIN_SPIKE_SPACING = 150;
+            const MAX_FALL_SPEED = 600;
+            const BOTTOM_SPIKE_HEIGHT = 60;
+            const BOTTOM_SPIKE_BASE = 40;
+
+            // ==================== DOM ELEMENTS ====================
+            const gameWorld = document.getElementById('game-world');
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            const scoreDisplay = document.getElementById('score-display');
+            const highScoreDisplay = document.getElementById('high-score-display');
+            const startScreen = document.getElementById('start-screen');
+            const deathScreen = document.getElementById('death-screen');
+            const finalScoreEl = document.getElementById('final-score');
+            const newHighScoreEl = document.getElementById('new-high-score');
+
+            // ==================== CANVAS SETUP ====================
+            canvas.width = CANVAS_WIDTH;
+            canvas.height = CANVAS_HEIGHT;
+
+            // ==================== GAME CONFIG DEFAULTS ====================
+            const defaultConfig = {
+                // Orb appearance
+                orbColor: '#00FFFF',
+                trailLength: 10,
+                glowIntensity: 1.0,
+                
+                // Spike appearance
+                spikeColor: '#FF0044',
+                spikeCountPerWall: 3,
+                
+                // Game feel
+                freezeFrameDuration: 0.04,
+                screenShakeIntensity: 6,
+                particleCountOnBounce: 12,
+                
+                // Difficulty
+                startingSpeed: 300,
+                gravityStrength: 1200,
+                jumpPower: 400,
+                
+                // Visual theme
+                backgroundColor: '#0a0a0a',
+                wallColor: '#1a1a2e',
+                pulseIntensity: 0.3,
+                
+                // Persistent data
+                highScore: 0
+            };
+
+            // Initialize gameConfig with defaults if not set
+            if (!window.gameConfig || Object.keys(window.gameConfig).length === 0) {
+                Object.assign(window.gameConfig, defaultConfig);
+            }
+
+            // Ensure all properties exist
+            for (const key in defaultConfig) {
+                if (window.gameConfig[key] === undefined) {
+                    window.gameConfig[key] = defaultConfig[key];
+                }
+            }
+
+            const config = window.gameConfig;
+
+            // ==================== AUDIO SYSTEM ====================
+            let audioContext = null;
+            const audioBuffers = {};
+            let musicSource = null;
+            let musicGainNode = null;
+
+            async function initAudio() {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Load all audio assets
+                    const audioAssets = [
+                        'wall_bounce_sfx', 
+                        'note_collection_chime',
+                        'note_collection_chime_alt',
+                        'jump_sfx', 
+                        'death_sfx', 
+                        'background_music'
+                    ];
+                    
+                    for (const id of audioAssets) {
+                        const assetInfo = lib.getAsset(id);
+                        if (assetInfo && assetInfo.url) {
+                            try {
+                                const response = await fetch(assetInfo.url);
+                                const arrayBuffer = await response.arrayBuffer();
+                                audioBuffers[id] = await audioContext.decodeAudioData(arrayBuffer);
+                            } catch (e) {
+                                lib.log(`Failed to load audio: ${id}`);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    lib.log('Audio initialization failed');
+                }
+            }
+
+            function playSound(id, volume = 1.0) {
+                if (!audioContext || !audioBuffers[id]) return;
+                
+                try {
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                    
+                    const source = audioContext.createBufferSource();
+                    const gainNode = audioContext.createGain();
+                    
+                    source.buffer = audioBuffers[id];
+                    gainNode.gain.value = volume;
+                    
+                    source.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    source.start(0);
+                } catch (e) {
+                    // Silent fail for audio
+                }
+            }
+
+            function startMusic() {
+                if (!audioContext || !audioBuffers['background_music'] || musicSource) return;
+                
+                try {
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                    
+                    musicSource = audioContext.createBufferSource();
+                    musicGainNode = audioContext.createGain();
+                    
+                    musicSource.buffer = audioBuffers['background_music'];
+                    musicSource.loop = true;
+                    musicGainNode.gain.value = 0.4;
+                    
+                    musicSource.connect(musicGainNode);
+                    musicGainNode.connect(audioContext.destination);
+                    
+                    musicSource.start(0);
+                } catch (e) {
+                    // Silent fail
+                }
+            }
+
+            function stopMusic() {
+                if (musicSource) {
+                    try {
+                        musicSource.stop();
+                    } catch (e) {}
+                    musicSource = null;
+                }
+            }
+
+            // ==================== BACKGROUND SYSTEM ====================
+            function initBackgroundParticles() {
+                backgroundParticles = [];
+                const colors = ['#B026FF', '#FFFF00', '#39FF14']; // Purple, Yellow, Green
+                
+                // Create floating geometric shapes
+                for (let i = 0; i < 15; i++) {
+                    backgroundParticles.push({
+                        x: Math.random() * CANVAS_WIDTH,
+                        y: Math.random() * CANVAS_HEIGHT,
+                        size: 20 + Math.random() * 40,
+                        speed: 20 + Math.random() * 30,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotationSpeed: (Math.random() - 0.5) * 0.5,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        shape: Math.floor(Math.random() * 3), // 0: square, 1: triangle, 2: hexagon
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        pulseSpeed: 2 + Math.random() * 2
+                    });
+                }
+            }
+            
+            function initDiscoLasers() {
+                discoLasers = [];
+                const colors = ['#B026FF', '#FFFF00', '#39FF14']; // Purple, Yellow, Green
+                const laserCount = 6;
+                
+                // Create rotating laser beams from top center
+                for (let i = 0; i < laserCount; i++) {
+                    discoLasers.push({
+                        angle: (i / laserCount) * Math.PI * 2,
+                        rotationSpeed: 0.3 + Math.random() * 0.4, // radians per second
+                        color: colors[i % colors.length],
+                        width: 30 + Math.random() * 20,
+                        length: CANVAS_HEIGHT * 1.5,
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        pulseSpeed: 2 + Math.random() * 1.5
+                    });
+                }
+            }
+            
+            function updateBackgroundEffects(dt) {
+                // Update floating particles
+                for (const p of backgroundParticles) {
+                    p.y += p.speed * dt;
+                    p.rotation += p.rotationSpeed * dt;
+                    p.pulsePhase += p.pulseSpeed * dt;
+                    
+                    // Wrap around
+                    if (p.y > CANVAS_HEIGHT + p.size) {
+                        p.y = -p.size;
+                        p.x = Math.random() * CANVAS_WIDTH;
+                    }
+                }
+                
+                // Update grid pulse (syncs with beat)
+                if (pulsePhase > 0.5) {
+                    gridPulse = pulsePhase;
+                } else {
+                    gridPulse *= 0.95;
+                }
+                
+                // Update scanline animation
+                scanlineOffset += dt * 50;
+                if (scanlineOffset > 4) scanlineOffset = 0;
+                
+                // Update disco lasers
+                for (const laser of discoLasers) {
+                    laser.angle += laser.rotationSpeed * dt;
+                    laser.pulsePhase += laser.pulseSpeed * dt;
+                }
+            }
+
+            // ==================== GAME STATE ====================
+            let gameState = 'start'; // 'start', 'playing', 'dead'
+            let score = 0;
+            let lastTime = 0;
+            
+            // Orb state
+            let orb = {
+                x: CANVAS_WIDTH / 2,
+                y: CANVAS_HEIGHT / 2,
+                vx: 0,
+                vy: 0,
+                scaleX: 1,
+                scaleY: 1,
+                targetScaleX: 1,
+                targetScaleY: 1
+            };
+            
+            // Spikes state
+            let leftSpikes = [];
+            let rightSpikes = [];
+            let bottomSpikes = [];
+            
+            // Musical note collectibles
+            let musicalNotes = [];
+            
+            // Chime alternation
+            let lastChimeUsed = 0; // 0 = first chime, 1 = second chime (alt)
+            
+            // Particles
+            let particles = [];
+            let trailParticles = [];
+            
+            // Game feel state
+            let freezeTimer = 0;
+            
+            // Speaker wave effect
+            let speakerWaves = [];
+            
+            // Background pulse
+            let pulsePhase = 0;
+            let beatTime = 0;
+            const BEAT_INTERVAL = 0.5; // seconds per beat (120 BPM)
+            
+            // Background elements
+            let backgroundParticles = [];
+            let gridPulse = 0;
+            let scanlineOffset = 0;
+            
+            // Disco laser beams
+            let discoLasers = [];
+            
+            // Progressive difficulty
+            let currentSpikeCount = 1; // Start with just 1 spike per wall
+            
+
+
+            // ==================== SPIKE GENERATION ====================
+            function generateSpikes() {
+                // Use dynamic spike count instead of fixed config
+                leftSpikes = generateWallSpikes(currentSpikeCount);
+                rightSpikes = generateWallSpikes(currentSpikeCount);
+                bottomSpikes = generateBottomSpikes();
+            }
+            
+            function updateDifficulty() {
+                // Progressive difficulty: faster ramp up
+                // Start at 1, cap at 4
+                if (score < 3) {
+                    currentSpikeCount = 1;
+                } else if (score < 7) {
+                    currentSpikeCount = 2;
+                } else if (score < 12) {
+                    currentSpikeCount = 3;
+                } else {
+                    currentSpikeCount = 4; // Maximum difficulty
+                }
+            }
+            
+            function generateBottomSpikes() {
+                // Create spikes/bars across the entire bottom
+                const spikes = [];
+                const spikeSpacing = BOTTOM_SPIKE_BASE;
+                const numSpikes = Math.floor(CANVAS_WIDTH / spikeSpacing);
+                
+                for (let i = 0; i < numSpikes; i++) {
+                    spikes.push({
+                        x: i * spikeSpacing + spikeSpacing / 2,
+                        width: BOTTOM_SPIKE_BASE,
+                        height: BOTTOM_SPIKE_HEIGHT, // Current height for animation
+                        targetHeight: BOTTOM_SPIKE_HEIGHT, // Target height for smooth animation
+                        baseHeight: BOTTOM_SPIKE_HEIGHT * 0.3, // Minimum height
+                        maxHeight: BOTTOM_SPIKE_HEIGHT * 1.5, // Maximum height
+                        animPhase: Math.random() * Math.PI * 2, // Random starting phase for wave effect
+                        colorIndex: i % 5 // Color index for cycling through colors
+                    });
+                }
+                
+                return spikes;
+            }
+
+            function generateWallSpikes(count) {
+                const spikes = [];
+                const margin = 150; // Keep spikes away from top/bottom
+                const availableHeight = CANVAS_HEIGHT - margin * 2;
+                
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                while (attempts < maxAttempts) {
+                    attempts++;
+                    spikes.length = 0;
+                    
+                    // Generate random positions
+                    for (let i = 0; i < count; i++) {
+                        const y = margin + Math.random() * availableHeight;
+                        spikes.push({ y: y, height: SPIKE_WIDTH });
+                    }
+                    
+                    // Sort by Y position
+                    spikes.sort((a, b) => a.y - b.y);
+                    
+                    // Check spacing and safe gap
+                    let valid = true;
+                    let hasLargeGap = false;
+                    
+                    // Check spacing between spikes
+                    for (let i = 1; i < spikes.length; i++) {
+                        const gap = spikes[i].y - spikes[i-1].y - SPIKE_WIDTH;
+                        if (gap < MIN_SPIKE_SPACING) {
+                            valid = false;
+                            break;
+                        }
+                        if (gap >= MIN_SAFE_GAP) {
+                            hasLargeGap = true;
+                        }
+                    }
+                    
+                    // Check gap from top
+                    if (spikes[0].y - SPIKE_WIDTH/2 >= MIN_SAFE_GAP) {
+                        hasLargeGap = true;
+                    }
+                    
+                    // Check gap from bottom
+                    if (CANVAS_HEIGHT - (spikes[spikes.length-1].y + SPIKE_WIDTH/2) >= MIN_SAFE_GAP) {
+                        hasLargeGap = true;
+                    }
+                    
+                    if (valid && hasLargeGap) {
+                        return spikes;
+                    }
+                }
+                
+                // Fallback: simple evenly spaced spikes with guaranteed gap
+                spikes.length = 0;
+                const spacing = availableHeight / (count + 1);
+                for (let i = 0; i < count; i++) {
+                    spikes.push({ 
+                        y: margin + spacing * (i + 1), 
+                        height: SPIKE_WIDTH 
+                    });
+                }
+                return spikes;
+            }
+
+            // ==================== PARTICLE SYSTEM ====================
+            function createBounceParticles(x, y, direction) {
+                const count = config.particleCountOnBounce;
+                const color = config.orbColor;
+                
+                for (let i = 0; i < count; i++) {
+                    const angle = (direction === 'left' ? Math.PI : 0) + (Math.random() - 0.5) * Math.PI * 0.8;
+                    const speed = 100 + Math.random() * 200;
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - 50,
+                        life: 1.0,
+                        maxLife: 1.0,
+                        size: 4 + Math.random() * 4,
+                        color: color
+                    });
+                }
+            }
+
+            function createDeathParticles(x, y) {
+                const count = 30;
+                
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 150 + Math.random() * 300;
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1.0,
+                        maxLife: 1.0,
+                        size: 5 + Math.random() * 8,
+                        color: Math.random() > 0.5 ? config.orbColor : config.spikeColor
+                    });
+                }
+            }
+
+            function createSpeakerWave() {
+    // Create compact concentric waves that expand from center (beat effect)
+    const centerX = CANVAS_WIDTH / 2;
+    const centerY = CANVAS_HEIGHT / 2;
+    
+    // Classic cyberpunk neon colors only: Purple, Yellow, Green
+    const colors = ['#B026FF', '#FFFF00', '#39FF14'];
+    
+    // Add 3 waves with cascade delay (reduced from 5 for performance)
+    for (let i = 0; i < 3; i++) {
+        speakerWaves.push({
+            x: centerX,
+            y: centerY,
+            radius: 0,
+            maxRadius: 500, // Expand further for more visible effect
+            life: 1.0,
+            speed: 650, // SLOWER: More graceful expansion
+            delay: i * 0.08, // Cascade delay (80ms between each)
+            active: false,
+            color: colors[i % colors.length],
+            baseLineWidth: 10 - (i * 3) // Thinner lines: 10, 7, 4
+        });
+    }
+}
+
+            function updateSpeakerWaves(dt) {
+                for (let i = speakerWaves.length - 1; i >= 0; i--) {
+                    const wave = speakerWaves[i];
+                    
+                    // Handle delay before activation
+                    if (!wave.active) {
+                        wave.delay -= dt;
+                        if (wave.delay <= 0) {
+                            wave.active = true;
+                        }
+                        continue; // Skip update until active
+                    }
+                    
+                    // Update active waves
+                    wave.radius += wave.speed * dt;
+                    wave.life = 1.0 - (wave.radius / wave.maxRadius);
+                    
+                    if (wave.life <= 0 || wave.radius > wave.maxRadius) {
+                        speakerWaves.splice(i, 1);
+                    }
+                }
+            }
+
+            function updateParticles(dt) {
+    // OPTIMIZED: Single gravity constant
+    const gravityDt = 400 * dt;
+    const lifeDt = dt * 2;
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += gravityDt;
+        p.life -= lifeDt;
+        
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+            
+
+function updateTrail(dt) {
+    // Add new trail particles more frequently for a denser trail
+    if (gameState === 'playing' && freezeTimer <= 0) {
+        // Add 2-3 particles per frame for smooth continuous trail
+        for (let i = 0; i < 2; i++) {
+            trailParticles.push({
+                x: orb.x + (Math.random() - 0.5) * ORB_RADIUS * 0.3, // Slight randomness
+                y: orb.y + (Math.random() - 0.5) * ORB_RADIUS * 0.3,
+                life: 1.0,
+                maxLife: 1.0,
+                size: ORB_RADIUS * 0.7, // Start larger
+                speed: Math.abs(orb.vx) / 300 // Track speed for effect
+            });
+        }
+    }
+    
+    // Limit trail length
+    while (trailParticles.length > config.trailLength * 3) { // Allow more particles
+        trailParticles.shift();
+    }
+    
+    // Update trail particles
+    for (let i = trailParticles.length - 1; i >= 0; i--) {
+        const p = trailParticles[i];
+        p.life -= dt * 2.5; // Slower fade for longer trail
+        
+        if (p.life <= 0) {
+            trailParticles.splice(i, 1);
+        }
+    }
+}
+
+
+            // ==================== GAME FEEL ====================
+            function triggerBounce(direction) {
+                // Freeze frame
+                freezeTimer = config.freezeFrameDuration;
+                
+                // Squash & stretch
+                orb.scaleX = 0.7;
+                orb.scaleY = 1.3;
+                orb.targetScaleX = 1;
+                orb.targetScaleY = 1;
+                
+                // Particles
+                const bounceX = direction === 'left' ? WALL_WIDTH : CANVAS_WIDTH - WALL_WIDTH;
+                createBounceParticles(bounceX, orb.y, direction);
+                
+                // Sound - play soft wall bounce sound instead of musical notes
+                playSound('wall_bounce_sfx', 0.25); // Very soft volume (0.25)
+                
+                // Beat pulse
+                pulsePhase = 1.0;
+                
+                // Regenerate spikes - only on the OPPOSITE wall
+                if (direction === 'left') {
+                    // Bounced off left wall, regenerate right spikes
+                    rightSpikes = generateWallSpikes(currentSpikeCount);
+                } else {
+                    // Bounced off right wall, regenerate left spikes
+                    leftSpikes = generateWallSpikes(currentSpikeCount);
+                }
+            }
+
+            function triggerJump() {
+    orb.vy = -config.jumpPower;
+    
+    // Slight squash
+    orb.scaleX = 1.15;
+    orb.scaleY = 0.85;
+    orb.targetScaleX = 1;
+    orb.targetScaleY = 1;
+}
+
+            async function triggerDeath() {
+                gameState = 'dead';
+                
+                // IMMEDIATELY stop all movement
+                orb.vx = 0;
+                orb.vy = 0;
+                freezeTimer = 0;
+                
+                // Particles
+                createDeathParticles(orb.x, orb.y);
+                
+                // Sound
+                playSound('death_sfx', 1.0);
+                stopMusic();
+                
+                // Update high score
+                if (score > config.highScore) {
+                    config.highScore = score;
+                    newHighScoreEl.classList.add('visible');
+                } else {
+                    newHighScoreEl.classList.remove('visible');
+                }
+                
+                // Show death screen
+                finalScoreEl.textContent = score;
+                highScoreDisplay.textContent = `BEST: ${config.highScore}`;
+                
+                setTimeout(async () => {
+                    deathScreen.classList.add('visible');
+                    
+                    // Submit score and fetch leaderboard
+                    await updateLeaderboard(score);
+                }, 300);
+            }
+
+            function updateScoreDisplay() {
+                scoreDisplay.textContent = score;
+            }
+
+            // ==================== LEADERBOARD SYSTEM ====================
+            async function updateLeaderboard(playerScore) {
+                const leaderboardEntries = document.getElementById('leaderboard-entries');
+                
+                // Show loading state
+                leaderboardEntries.innerHTML = '<div class="leaderboard-loading">Loading leaderboard...</div>';
+                
+                try {
+                    // Submit score and get leaderboard
+                    const response = await lib.addPlayerScoreToLeaderboard(playerScore, 10);
+                    
+                    if (response.success && response.entries && response.entries.length > 0) {
+                        displayLeaderboard(response.entries, response.userRank);
+                    } else {
+                        // Fallback: fetch leaderboard without submitting
+                        const fallbackResponse = await lib.getTopNEntriesFromLeaderboard(10);
+                        displayLeaderboard(fallbackResponse.entries, fallbackResponse.userRank);
+                    }
+                } catch (error) {
+                    // Handle errors gracefully (e.g., guest users, API failures)
+                    lib.log(`Leaderboard error: ${error.message}`);
+                    
+                    // Show error message
+                    leaderboardEntries.innerHTML = '<div class="leaderboard-error">Leaderboard unavailable</div>';
+                }
+            }
+            
+            function displayLeaderboard(entries, userRank) {
+                const leaderboardEntries = document.getElementById('leaderboard-entries');
+                
+                if (!entries || entries.length === 0) {
+                    leaderboardEntries.innerHTML = '<div class="leaderboard-loading">No entries yet. Be the first!</div>';
+                    return;
+                }
+                
+                // Get current user ID for highlighting
+                let currentUserId = null;
+                try {
+                    // Try to get user info if available
+                    if (entries.length > 0 && entries[0].userId) {
+                        // We can infer current user if their rank matches an entry
+                        const userEntry = entries.find((entry, index) => index + 1 === userRank);
+                        if (userEntry) {
+                            currentUserId = userEntry.userId;
+                        }
+                    }
+                } catch (e) {
+                    // Silent fail
+                }
+                
+                // Build leaderboard HTML
+                let html = '';
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    const rank = i + 1;
+                    const isCurrentPlayer = rank === userRank;
+                    
+                    const entryClass = `leaderboard-entry rank-${rank}${isCurrentPlayer ? ' current-player' : ''}`;
+                    
+                    html += `
+                        <div class="${entryClass}">
+                            <div class="leaderboard-rank">#${rank}</div>
+                            <div class="leaderboard-player">${entry.username || 'Anonymous'}</div>
+                            <div class="leaderboard-score">${entry.score}</div>
+                        </div>
+                    `;
+                }
+                
+                leaderboardEntries.innerHTML = html;
+            }
+
+            // ==================== COLLISION DETECTION ====================
+            function checkSpikeCollision() {
+                // Check left wall spikes
+                if (orb.x - ORB_RADIUS <= WALL_WIDTH + SPIKE_LENGTH) {
+                    for (const spike of leftSpikes) {
+                        if (orb.y > spike.y - spike.height/2 - ORB_RADIUS * 0.8 && 
+                            orb.y < spike.y + spike.height/2 + ORB_RADIUS * 0.8) {
+                            if (orb.x - ORB_RADIUS < WALL_WIDTH + SPIKE_LENGTH) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                // Check right wall spikes
+                if (orb.x + ORB_RADIUS >= CANVAS_WIDTH - WALL_WIDTH - SPIKE_LENGTH) {
+                    for (const spike of rightSpikes) {
+                        if (orb.y > spike.y - spike.height/2 - ORB_RADIUS * 0.8 && 
+                            orb.y < spike.y + spike.height/2 + ORB_RADIUS * 0.8) {
+                            if (orb.x + ORB_RADIUS > CANVAS_WIDTH - WALL_WIDTH - SPIKE_LENGTH) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                // Check bottom spikes (now animated bars)
+                for (const spike of bottomSpikes) {
+                    if (orb.x > spike.x - spike.width/2 - ORB_RADIUS * 0.8 && 
+                        orb.x < spike.x + spike.width/2 + ORB_RADIUS * 0.8) {
+                        // Use the animated height for collision
+                        if (orb.y + ORB_RADIUS > CANVAS_HEIGHT - spike.height) {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }
+
+            // ==================== GAME LOGIC ====================
+            function startGame() {
+                gameState = 'playing';
+                score = 0;
+                
+                // Reset difficulty to starting level
+                currentSpikeCount = 1;
+                
+                // Reset orb
+                orb.x = CANVAS_WIDTH / 2;
+                orb.y = CANVAS_HEIGHT / 2;
+                orb.vx = config.startingSpeed;
+                orb.vy = 0;
+                orb.scaleX = 1;
+                orb.scaleY = 1;
+                
+                // Clear particles
+                particles = [];
+                trailParticles = [];
+                
+                // Spawn first musical note
+                spawnMusicalNote();
+                
+                // Reset effects
+                freezeTimer = 0;
+                pulsePhase = 0;
+                speakerWaves = [];
+                
+                // Generate initial spikes
+                generateSpikes();
+                
+                // Update UI
+                updateScoreDisplay();
+                highScoreDisplay.textContent = `BEST: ${config.highScore}`;
+                startScreen.classList.add('hidden');
+                deathScreen.classList.remove('visible');
+                
+                // Start music
+                startMusic();
+            }
+
+            function update(dt) {
+                // Limit delta time to prevent large jumps
+                dt = Math.min(dt, 0.11);
+                
+                if (gameState !== 'playing') return;
+                
+                // Handle freeze frame
+                if (freezeTimer > 0) {
+                    freezeTimer -= dt;
+                    // Still update visual effects during freeze
+                    updateVisualEffects(dt);
+                    return;
+                }
+                
+                // Update orb physics
+                orb.vy += config.gravityStrength * dt;
+                orb.vy = Math.min(orb.vy, MAX_FALL_SPEED);
+                
+                orb.x += orb.vx * dt;
+                orb.y += orb.vy * dt;
+                
+                // Wall collision
+                if (orb.x - ORB_RADIUS <= WALL_WIDTH) {
+                    orb.x = WALL_WIDTH + ORB_RADIUS;
+                    orb.vx = Math.abs(orb.vx);
+                    triggerBounce('left');
+                } else if (orb.x + ORB_RADIUS >= CANVAS_WIDTH - WALL_WIDTH) {
+                    orb.x = CANVAS_WIDTH - WALL_WIDTH - ORB_RADIUS;
+                    orb.vx = -Math.abs(orb.vx);
+                    triggerBounce('right');
+                }
+                
+                // Spike collision
+                if (checkSpikeCollision()) {
+                    triggerDeath();
+                    return;
+                }
+                
+                // Keep orb in bounds vertically (with some margin)
+                if (orb.y < ORB_RADIUS) {
+                    orb.y = ORB_RADIUS;
+                    orb.vy = Math.abs(orb.vy) * 0.5;
+                }
+                // Bottom bound removed - spikes handle the bottom
+                
+                // Update visual effects
+                updateVisualEffects(dt);
+                
+                // Update background effects
+                updateBackgroundEffects(dt);
+                
+                // Update musical note
+                updateMusicalNote(dt);
+                
+                // Check note collection
+                checkNoteCollection();
+            }
+
+            function updateVisualEffects(dt) {
+                // Squash & stretch interpolation
+                orb.scaleX += (orb.targetScaleX - orb.scaleX) * 10 * dt;
+                orb.scaleY += (orb.targetScaleY - orb.scaleY) * 10 * dt;
+                
+                // Pulse decay
+                pulsePhase *= Math.pow(0.95, dt * 60);
+                
+                // Update particles
+                updateParticles(dt);
+                updateTrail(dt);
+                
+                // Update speaker waves
+                updateSpeakerWaves(dt);
+                
+                // Update bottom spikes animation (audio visualizer effect)
+                updateBottomSpikesAnimation(dt);
+                
+                // Update background effects
+                updateBackgroundEffects(dt);
+            }
+            
+            function updateBottomSpikesAnimation(dt) {
+                // Animate bottom spikes like an audio visualizer
+                for (let i = 0; i < bottomSpikes.length; i++) {
+                    const spike = bottomSpikes[i];
+                    
+                    // Update animation phase
+                    spike.animPhase += dt * 4; // Speed of the wave
+                    
+                    // Calculate target height using sine wave for smooth animation
+                    // Add different frequencies for variety
+                    const wave1 = Math.sin(spike.animPhase);
+                    const wave2 = Math.sin(spike.animPhase * 1.5 + i * 0.5);
+                    const combined = (wave1 + wave2) * 0.5;
+                    
+                    // Map to height range
+                    spike.targetHeight = spike.baseHeight + (spike.maxHeight - spike.baseHeight) * (0.5 + combined * 0.5);
+                    
+                    // Smooth interpolation to target height
+                    spike.height += (spike.targetHeight - spike.height) * 8 * dt;
+                    
+                    // React to beats - make them jump on wall bounces
+                    if (pulsePhase > 0.5) {
+                        spike.height = Math.max(spike.height, spike.maxHeight * (0.8 + pulsePhase * 0.2));
+                    }
+                }
+            }
+            
+            // ==================== MUSICAL NOTE SYSTEM ====================
+            function spawnMusicalNote() {
+                musicalNotes = []; // Clear existing notes
+                
+                // Find a safe position away from spikes, walls, and bottom area
+                const margin = 100;
+                const safeZoneLeft = WALL_WIDTH + SPIKE_LENGTH + margin;
+                const safeZoneRight = CANVAS_WIDTH - WALL_WIDTH - SPIKE_LENGTH - margin;
+                const safeZoneTop = margin + 100; // Extra top margin
+                const safeZoneBottom = CANVAS_HEIGHT - BOTTOM_SPIKE_HEIGHT - margin - 250; // Much higher from bottom
+                
+                let attempts = 0;
+                let safePos = false;
+                let baseX, baseY;
+                
+                while (!safePos && attempts < 50) {
+                    attempts++;
+                    baseX = safeZoneLeft + Math.random() * (safeZoneRight - safeZoneLeft);
+                    baseY = safeZoneTop + Math.random() * (safeZoneBottom - safeZoneTop);
+                    
+                    // Check if far enough from all spikes
+                    safePos = true;
+                    
+                    // Check left spikes
+                    for (const spike of leftSpikes) {
+                        const dist = Math.abs(baseY - spike.y);
+                        if (baseX < safeZoneLeft + 50 && dist < 150) {
+                            safePos = false;
+                            break;
+                        }
+                    }
+                    
+                    // Check right spikes
+                    if (safePos) {
+                        for (const spike of rightSpikes) {
+                            const dist = Math.abs(baseY - spike.y);
+                            if (baseX > safeZoneRight - 50 && dist < 150) {
+                                safePos = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Random color from cyberpunk palette
+                const colorIndex = Math.floor(Math.random() * 3);
+                
+                // Create single note (larger size)
+                musicalNotes.push({
+                    x: baseX,
+                    y: baseY,
+                    active: true,
+                    size: 70,
+                    glowPhase: 0,
+                    floatOffset: 0,
+                    colorIndex: colorIndex // Add color index
+                });
+            }
+            
+            function updateMusicalNote(dt) {
+                for (const note of musicalNotes) {
+                    if (!note.active) continue;
+                    
+                    // Animate glow pulsing
+                    note.glowPhase += dt * 3;
+                    
+                    // Floating animation
+                    note.floatOffset += dt * 2;
+                }
+            }
+            
+            function checkNoteCollection() {
+                if (musicalNotes.length === 0) return;
+                
+                const note = musicalNotes[0];
+                if (!note.active) return;
+                
+                const dx = orb.x - note.x;
+                const dy = orb.y - note.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < ORB_RADIUS + note.size * 0.6) {
+                    note.active = false;
+                    createNoteCollectParticles(note.x, note.y);
+                    collectNote(1);
+                }
+            }
+            
+            function collectNote(points) {
+                // Play the collection chime at lower volume
+                playSound('note_collection_chime', 0.6);
+                
+                // Create speaker wave effect on note collection
+                createSpeakerWave();
+                
+                // Increase score by points
+                score += points;
+                updateScoreDisplay();
+                
+                // Update difficulty based on new score
+                updateDifficulty();
+                
+                // Spawn next note after short delay
+                setTimeout(() => {
+                    spawnMusicalNote();
+                }, 300);
+            }
+            
+            function createNoteCollectParticles(x, y) {
+                const count = 15;
+                const colors = ['#FFD700', '#00FFFF', '#FF00FF', '#00FF88'];
+                
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const speed = 150 + Math.random() * 100;
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1.0,
+                        maxLife: 1.0,
+                        size: 4 + Math.random() * 5,
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    });
+                }
+            }
+
+            // ==================== RENDERING ====================
+            function hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 0, g: 255, b: 255 };
+            }
+
+            
+function render() {
+    // Clear canvas
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw background with effects
+    drawBackground();
+    
+    // Draw background grid
+    drawBackgroundGrid();
+    
+    // Draw disco lasers (behind everything except background)
+    drawDiscoLasers();
+    
+    // Draw floating background particles
+    drawBackgroundParticles();
+    
+    // Draw scanlines
+    drawScanlines();
+    
+    // Draw speaker waves (behind everything)
+    drawSpeakerWaves();
+    
+    // Draw walls
+    drawWalls();
+    
+    // Draw spikes
+    drawSpikes();
+    
+    // Draw bottom spikes
+    drawBottomSpikes();
+    
+    // Draw trail
+    drawTrail();
+    
+    // Draw particles
+    drawParticles();
+    
+    // Draw musical note
+    drawMusicalNote();
+    
+    // Draw orb
+    if (gameState !== 'dead') {
+        drawOrb();
+    }
+}
+
+
+            
+function drawBackground() {
+    // Base background fill
+    ctx.fillStyle = config.backgroundColor;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Beat pulse - only if visible (OPTIMIZED: skip if not visible)
+    if (pulsePhase > 0.05) {
+        const pulseAlpha = pulsePhase * config.pulseIntensity * 0.2;
+        const orbRgb = hexToRgb(config.orbColor);
+        ctx.fillStyle = `rgba(${orbRgb.r}, ${orbRgb.g}, ${orbRgb.b}, ${pulseAlpha})`;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+}
+
+function drawBackgroundGrid() {
+    // Cyberpunk-style perspective grid
+    const colors = ['#B026FF', '#FFFF00', '#39FF14'];
+    const gridColor = colors[Math.floor(Date.now() / 3000) % colors.length];
+    const rgb = hexToRgb(gridColor);
+    
+    // Base alpha with pulse
+    const baseAlpha = 0.08 + gridPulse * 0.12;
+    
+    ctx.save();
+    ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${baseAlpha})`;
+    ctx.lineWidth = 1;
+    
+    // OPTIMIZED: Pre-calculate constants
+    const horizLineCount = 20;
+    const centerY = CANVAS_HEIGHT * 0.7;
+    const heightFromCenter = CANVAS_HEIGHT - centerY;
+    
+    // Horizontal lines (perspective)
+    ctx.beginPath();
+    for (let i = 0; i < horizLineCount; i++) {
+        const t = i / horizLineCount;
+        const y = centerY + heightFromCenter * (t * t); // Perspective curve
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_WIDTH, y);
+    }
+    ctx.stroke();
+    
+    // Vertical lines (converging to center)
+    const vertLineCount = 12;
+    const vanishingY = centerY - 200;
+    const halfWidth = CANVAS_WIDTH / 2;
+    
+    ctx.beginPath();
+    for (let i = 0; i < vertLineCount; i++) {
+        const x = (i / (vertLineCount - 1)) * CANVAS_WIDTH;
+        ctx.moveTo(x, CANVAS_HEIGHT);
+        ctx.lineTo(halfWidth + (x - halfWidth) * 0.3, vanishingY);
+    }
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+function drawBackgroundParticles() {
+    if (backgroundParticles.length === 0) return;
+    
+    const colors = ['#B026FF', '#FFFF00', '#39FF14'];
+    
+    // OPTIMIZED - Batch drawing by shape type to reduce state changes
+    ctx.save();
+    ctx.lineWidth = 2;
+    
+    for (const p of backgroundParticles) {
+        const pulse = 0.5 + Math.sin(p.pulsePhase) * 0.3;
+        const alpha = 0.15 * pulse;
+        const size = p.size * (0.8 + pulse * 0.2);
+        
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = p.color;
+        
+        // Draw shape
+        if (p.shape === 0) {
+            // Square
+            ctx.strokeRect(-size/2, -size/2, size, size);
+        } else if (p.shape === 1) {
+            // Triangle
+            ctx.beginPath();
+            ctx.moveTo(0, -size/2);
+            ctx.lineTo(size/2, size/2);
+            ctx.lineTo(-size/2, size/2);
+            ctx.closePath();
+            ctx.stroke();
+        } else {
+            // Hexagon
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const x = Math.cos(angle) * size/2;
+                const y = Math.sin(angle) * size/2;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+    
+    ctx.restore();
+}
+
+function drawScanlines() {
+    // Subtle horizontal scanlines for CRT effect (OPTIMIZED: batch lines)
+    ctx.save();
+    ctx.globalAlpha = 0.03;
+    ctx.strokeStyle = '#00FFFF';
+    ctx.lineWidth = 1;
+    
+    ctx.beginPath();
+    for (let y = scanlineOffset; y < CANVAS_HEIGHT; y += 4) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_WIDTH, y);
+    }
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+function drawDiscoLasers() {
+    // Draw rotating laser beams from top center (OPTIMIZED - simpler rendering)
+    const originX = CANVAS_WIDTH / 2;
+    const originY = 0;
+    
+    ctx.save();
+    
+    for (const laser of discoLasers) {
+        const rgb = hexToRgb(laser.color);
+        const pulse = 0.5 + Math.sin(laser.pulsePhase) * 0.3;
+        const alpha = 0.08 * pulse;
+        
+        // Draw wide beam
+        ctx.save();
+        ctx.translate(originX, originY);
+        ctx.rotate(laser.angle);
+        ctx.globalAlpha = alpha;
+        
+        // Draw beam as a tapered rectangle (no gradient for performance)
+        ctx.beginPath();
+        ctx.moveTo(0, -laser.width / 2);
+        ctx.lineTo(laser.length, -laser.width * 1.5);
+        ctx.lineTo(laser.length, laser.width * 1.5);
+        ctx.lineTo(0, laser.width / 2);
+        ctx.closePath();
+        
+        ctx.fillStyle = laser.color;
+        ctx.fill();
+        
+        // Add bright core in center (simpler)
+        ctx.globalAlpha = alpha * 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -laser.width * 0.15);
+        ctx.lineTo(laser.length * 0.7, -laser.width * 0.2);
+        ctx.lineTo(laser.length * 0.7, laser.width * 0.2);
+        ctx.lineTo(0, laser.width * 0.15);
+        ctx.closePath();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
+    ctx.restore();
+}
+
+
+            
+function drawWalls() {
+    const wallColor = config.wallColor;
+    
+    // Simple wall fills
+    ctx.fillStyle = wallColor;
+    ctx.fillRect(0, 0, WALL_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(CANVAS_WIDTH - WALL_WIDTH, 0, WALL_WIDTH, CANVAS_HEIGHT);
+}
+
+
+            
+function drawSpikes() {
+    const spikeColor = config.spikeColor;
+    const rgb = hexToRgb(spikeColor);
+    
+    // No shadow blur for better performance
+    
+    // Left spikes (pointing right)
+    for (const spike of leftSpikes) {
+        ctx.beginPath();
+        ctx.moveTo(WALL_WIDTH, spike.y - spike.height/2);
+        ctx.lineTo(WALL_WIDTH + SPIKE_LENGTH, spike.y);
+        ctx.lineTo(WALL_WIDTH, spike.y + spike.height/2);
+        ctx.closePath();
+        
+        // Simple fill, no gradient
+        ctx.fillStyle = spikeColor;
+        ctx.fill();
+    }
+    
+    // Right spikes (pointing left)
+    for (const spike of rightSpikes) {
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_WIDTH - WALL_WIDTH, spike.y - spike.height/2);
+        ctx.lineTo(CANVAS_WIDTH - WALL_WIDTH - SPIKE_LENGTH, spike.y);
+        ctx.lineTo(CANVAS_WIDTH - WALL_WIDTH, spike.y + spike.height/2);
+        ctx.closePath();
+        
+        ctx.fillStyle = spikeColor;
+        ctx.fill();
+    }
+}
+
+            
+            
+function drawBottomSpikes() {
+    // Classic cyberpunk neon colors only: Purple, Yellow, Green
+    const visualizerColors = [
+        '#B026FF', // Neon Purple
+        '#FFFF00', // Neon Yellow
+        '#39FF14'  // Neon Green
+    ];
+    
+    // OPTIMIZED: Pre-convert colors to RGB once
+    const rgbCache = visualizerColors.map(hexToRgb);
+    
+    // Draw as vertical bars (audio visualizer style) with optimized rendering
+    for (const spike of bottomSpikes) {
+        const barHeight = spike.height;
+        const barY = CANVAS_HEIGHT - barHeight;
+        
+        // Get color from palette (cycles through the 3 colors)
+        const colorIndex = spike.colorIndex % visualizerColors.length;
+        const color = visualizerColors[colorIndex];
+        const rgb = rgbCache[colorIndex];
+        
+        // Bar dimensions
+        const barWidth = spike.width * 0.75;
+        const barX = spike.x - barWidth / 2;
+        const cornerRadius = 3;
+        
+        ctx.save();
+        
+        // Draw glow layers without shadow (OPTIMIZED: all at once)
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`;
+        ctx.fillRect(barX - 8, barY, barWidth + 16, CANVAS_HEIGHT - barY);
+        
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+        ctx.fillRect(barX - 4, barY, barWidth + 8, CANVAS_HEIGHT - barY);
+        
+        // MAIN BAR with shadow (single shadow setup)
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 15;
+        
+        // Draw rounded rectangle bar
+        ctx.beginPath();
+        ctx.moveTo(barX + cornerRadius, barY);
+        ctx.lineTo(barX + barWidth - cornerRadius, barY);
+        ctx.quadraticCurveTo(barX + barWidth, barY, barX + barWidth, barY + cornerRadius);
+        ctx.lineTo(barX + barWidth, CANVAS_HEIGHT);
+        ctx.lineTo(barX, CANVAS_HEIGHT);
+        ctx.lineTo(barX, barY + cornerRadius);
+        ctx.quadraticCurveTo(barX, barY, barX + cornerRadius, barY);
+        ctx.closePath();
+        
+        ctx.fillStyle = color;
+        ctx.fill();
+        
+        // BRIGHT CAP on top (no shadow)
+        ctx.shadowBlur = 0;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillRect(barX - 2, barY - 2, barWidth + 4, 2);
+        
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.8)`;
+        ctx.fillRect(barX, barY, barWidth, 6);
+        
+        // Inner bright core cap
+        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+        ctx.fillRect(barX, barY, barWidth, 2);
+        
+        ctx.restore();
+    }
+}
+
+
+            function drawSpeakerWaves() {
+    if (speakerWaves.length === 0) return;
+    
+    ctx.save();
+    
+    for (const wave of speakerWaves) {
+        if (!wave.active) continue;
+        
+        // Fade out faster for snappier effect
+        const alpha = wave.life * wave.life * 0.5; // Squared for faster fade
+        const lineWidth = wave.baseLineWidth * wave.life;
+        
+        // Skip if barely visible (performance optimization)
+        if (alpha < 0.02) continue;
+        
+        const rgb = hexToRgb(wave.color);
+        
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+    }
+    
+    ctx.restore();
+}
+
+            
+function drawTrail() {
+    if (trailParticles.length === 0) return;
+    
+    const orbColor = config.orbColor;
+    const rgb = hexToRgb(orbColor);
+    
+    // OPTIMIZED: Single shadow setup for all trail particles
+    ctx.save();
+    ctx.shadowColor = orbColor;
+    
+    // Draw trail particles from oldest to newest for proper layering
+    for (let i = 0; i < trailParticles.length; i++) {
+        const p = trailParticles[i];
+        
+        // Smooth easing for fade out (ease-out cubic)
+        const lifeFactor = p.life;
+        const easedLife = 1 - Math.pow(1 - lifeFactor, 3);
+        
+        // Size decreases smoothly
+        const size = p.size * (0.3 + lifeFactor * 0.7);
+        
+        // Alpha with better visibility
+        const alpha = lifeFactor * 0.6;
+        
+        // Brightness increases for recent particles
+        const brightness = Math.min(255, rgb.r + (255 - rgb.r) * (1 - lifeFactor) * 0.3);
+        const brightnessG = Math.min(255, rgb.g + (255 - rgb.g) * (1 - lifeFactor) * 0.3);
+        const brightnessB = Math.min(255, rgb.b + (255 - rgb.b) * (1 - lifeFactor) * 0.3);
+        
+        // Update shadow blur for this particle
+        ctx.shadowBlur = 15 * lifeFactor * config.glowIntensity;
+        
+        // Main trail particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${brightness}, ${brightnessG}, ${brightnessB}, ${alpha})`;
+        ctx.fill();
+        
+        // Inner bright core for recent particles
+        if (lifeFactor > 0.5) {
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, size * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${(lifeFactor - 0.5) * 0.6})`;
+            ctx.fill();
+            // Restore shadow for next iteration
+            ctx.shadowBlur = 15 * lifeFactor * config.glowIntensity;
+        }
+    }
+    
+    ctx.restore();
+}
+
+
+            
+function drawParticles() {
+    // Draw all particles without individual shadows for performance
+    for (const p of particles) {
+        const rgb = hexToRgb(p.color);
+        const alpha = p.life;
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        ctx.fill();
+    }
+}
+
+
+            
+function drawOrb() {
+    const orbColor = config.orbColor;
+    const rgb = hexToRgb(orbColor);
+    
+    ctx.save();
+    ctx.translate(orb.x, orb.y);
+    ctx.scale(orb.scaleX, orb.scaleY);
+    
+    // Outer glow - only on the orb for performance
+    ctx.shadowColor = orbColor;
+    ctx.shadowBlur = 25 * config.glowIntensity;
+    
+    // Main orb - simple solid color with single glow
+    ctx.beginPath();
+    ctx.arc(0, 0, ORB_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = orbColor;
+    ctx.fill();
+    
+    // Inner bright core - no shadow
+    ctx.shadowBlur = 0;
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, ORB_RADIUS * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+    
+    ctx.restore();
+}
+
+function drawMusicalNote() {
+    if (musicalNotes.length === 0) return;
+    
+    // Cyberpunk color palette matching waves and visualizer
+    const noteColors = ['#B026FF', '#FFFF00', '#39FF14']; // Purple, Yellow, Green
+    
+    for (const note of musicalNotes) {
+        if (!note.active) continue;
+        
+        const floatY = note.y + Math.sin(note.floatOffset) * 10;
+        const glowPulse = 0.7 + Math.sin(note.glowPhase) * 0.3;
+        const color = noteColors[note.colorIndex];
+        const rgb = hexToRgb(color);
+        
+        ctx.save();
+        ctx.translate(note.x, floatY);
+        
+        // OPTIMIZED: Single shadow setup, minimize changes
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 30 * glowPulse;
+        
+        // Outer circle fill
+        ctx.beginPath();
+        ctx.arc(0, 0, note.size * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`;
+        ctx.fill();
+        
+        // Circle stroke (outline)
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        
+        // Inner bright ring (no shadow)
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.arc(0, 0, note.size * 0.65, 0, Math.PI * 2);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${glowPulse * 0.8})`;
+        ctx.stroke();
+        
+        // Draw musical note symbol (♪) with shadow
+        ctx.shadowBlur = 20 * glowPulse;
+        ctx.fillStyle = color;
+        ctx.font = 'bold 50px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('♪', 0, 0);
+        
+        // Inner bright highlight on symbol (no shadow)
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = `rgba(255, 255, 255, ${glowPulse * 0.9})`;
+        ctx.fillText('♪', 0, 0);
+        
+        ctx.restore();
+    }
+}
+
+
+            // ==================== INPUT HANDLING ====================
+            function handleInput() {
+                if (gameState === 'playing') {
+                    triggerJump();
+                } else if (gameState === 'start' || gameState === 'dead') {
+                    startGame();
+                }
+            }
+
+            function resumeAudio() {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().catch(() => {});
+                }
+            }
+
+            // Touch input - on canvas (primary)
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                resumeAudio();
+                handleInput();
+            }, { passive: false });
+
+            // Touch input - on game-world (fallback)
+            gameWorld.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                resumeAudio();
+                handleInput();
+            }, { passive: false });
+
+            // Touch input - on document (ultimate fallback)
+            document.addEventListener('touchstart', (e) => {
+                resumeAudio();
+                handleInput();
+            }, { passive: true });
+
+            // Mouse input - on canvas
+            canvas.addEventListener('click', (e) => {
+                resumeAudio();
+                handleInput();
+            });
+
+            // Mouse input - on game-world (fallback)
+            gameWorld.addEventListener('click', (e) => {
+                resumeAudio();
+                handleInput();
+            });
+
+            // Keyboard input
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (key === ' ' || key === 'arrowup' || key === 'w') {
+                    e.preventDefault();
+                    resumeAudio();
+                    handleInput();
+                }
+                if (key === 'enter') {
+                    if (gameState === 'start' || gameState === 'dead') {
+                        e.preventDefault();
+                        resumeAudio();
+                        startGame();
+                    }
+                }
+            });
+
+            // Prevent default touch behavior
+            document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+            // ==================== EDIT MODE ====================
+            function setupEditMode() {
+                // Show game parameters panel
+                lib.showGameParameters({
+                    name: 'Beat Bounce Settings',
+                    params: {
+                        'Orb Color': {
+                            key: 'orbColor',
+                            type: 'color'
+                        },
+                        'Trail Length': {
+                            key: 'trailLength',
+                            type: 'slider',
+                            min: 5,
+                            max: 20,
+                            step: 1
+                        },
+                        'Glow Intensity': {
+                            key: 'glowIntensity',
+                            type: 'slider',
+                            min: 0.5,
+                            max: 2.0,
+                            step: 0.1
+                        },
+                        'Spike Color': {
+                            key: 'spikeColor',
+                            type: 'color'
+                        },
+                        'Spikes Per Wall': {
+                            key: 'spikeCountPerWall',
+                            type: 'dropdown',
+                            options: [
+                                { label: '2 (Easy)', value: 2 },
+                                { label: '3 (Normal)', value: 3 },
+                                { label: '4 (Hard)', value: 4 }
+                            ]
+                        },
+                        'Freeze Frame': {
+                            key: 'freezeFrameDuration',
+                            type: 'slider',
+                            min: 0.02,
+                            max: 0.08,
+                            step: 0.01
+                        },
+
+                        'Particle Count': {
+                            key: 'particleCountOnBounce',
+                            type: 'slider',
+                            min: 5,
+                            max: 20,
+                            step: 1
+                        },
+                        'Starting Speed': {
+                            key: 'startingSpeed',
+                            type: 'slider',
+                            min: 200,
+                            max: 400,
+                            step: 10
+                        },
+                        'Gravity': {
+                            key: 'gravityStrength',
+                            type: 'slider',
+                            min: 800,
+                            max: 1500,
+                            step: 50
+                        },
+                        'Jump Power': {
+                            key: 'jumpPower',
+                            type: 'slider',
+                            min: 300,
+                            max: 500,
+                            step: 10
+                        },
+                        'Background Color': {
+                            key: 'backgroundColor',
+                            type: 'color'
+                        },
+                        'Wall Color': {
+                            key: 'wallColor',
+                            type: 'color'
+                        },
+                        'Pulse Intensity': {
+                            key: 'pulseIntensity',
+                            type: 'slider',
+                            min: 0,
+                            max: 1,
+                            step: 0.1
+                        }
+                    }
+                });
+                
+                // In edit mode, show a preview state
+                gameState = 'start';
+                orb.x = CANVAS_WIDTH / 2;
+                orb.y = CANVAS_HEIGHT / 2;
+                generateSpikes();
+                
+                // Spawn a preview note in edit mode
+                musicalNotes = [{
+                    x: CANVAS_WIDTH / 2,
+                    y: CANVAS_HEIGHT / 2 - 200,
+                    active: true,
+                    size: 70,
+                    glowPhase: 0,
+                    floatOffset: 0,
+                    colorIndex: 0 // Purple for preview
+                }];
+            }
+
+            // ==================== GAME LOOP ====================
+            function gameLoop(timestamp) {
+                const dt = lastTime ? (timestamp - lastTime) / 1000 : 0.016;
+                lastTime = timestamp;
+                
+                // Update game state
+                update(dt);
+                
+                // Render
+                render();
+                
+                requestAnimationFrame(gameLoop);
+            }
+
+            // ==================== INITIALIZATION ====================
+            async function init() {
+                // Initialize audio
+                await initAudio();
+                
+                // Initialize background effects
+                initBackgroundParticles();
+                initDiscoLasers();
+                
+                // Generate initial spikes
+                generateSpikes();
+                
+                // Update high score display
+                highScoreDisplay.textContent = `BEST: ${config.highScore}`;
+                
+                // Setup based on mode
+                if (mode === 'edit') {
+                    setupEditMode();
+                } else {
+                    // Show game parameters in play mode too
+                    lib.showGameParameters({
+                        name: 'Beat Bounce Settings',
+                        params: {
+                            'Orb Color': {
+                                key: 'orbColor',
+                                type: 'color'
+                            },
+                            'Spike Color': {
+                                key: 'spikeColor',
+                                type: 'color'
+                            },
+                            'Spikes Per Wall': {
+                                key: 'spikeCountPerWall',
+                                type: 'dropdown',
+                                options: [
+                                    { label: '2 (Easy)', value: 2 },
+                                    { label: '3 (Normal)', value: 3 },
+                                    { label: '4 (Hard)', value: 4 }
+                                ]
+                            },
+                            'Starting Speed': {
+                                key: 'startingSpeed',
+                                type: 'slider',
+                                min: 200,
+                                max: 400,
+                                step: 10
+                            },
+                            'Gravity': {
+                                key: 'gravityStrength',
+                                type: 'slider',
+                                min: 800,
+                                max: 1500,
+                                step: 50
+                            },
+                            'Jump Power': {
+                                key: 'jumpPower',
+                                type: 'slider',
+                                min: 300,
+                                max: 500,
+                                step: 10
+                            }
+                        }
+                    });
+                }
+                
+                // Start game loop
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Start the game
+            init();
+        }
+    </script>
+</body>
+</html>
