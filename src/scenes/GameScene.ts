@@ -7,6 +7,7 @@ import { NoteManager } from "../systems/NoteManager";
 import { ParticleManager } from "../systems/ParticleManager";
 import { SpikeManager } from "../systems/SpikeManager";
 import { SynthAudioSystem } from "../systems/SynthAudioSystem";
+import { TryAgainModal } from "../systems/TryAgainModal";
 
 /**
  * Beat Bounce — main game scene.
@@ -25,14 +26,17 @@ export class GameScene extends Phaser.Scene {
   private H = 0;
 
   /* ── game state ────────────────────────────────── */
-  // "waiting" = before startGame(); "countdown" = 3-2-1; "playing" = active; "dead" = game over
-  private gameState: "waiting" | "countdown" | "playing" | "dead" = "waiting";
+  // "waiting" = before startGame(); "countdown" = 3-2-1; "playing" = active;
+  // "tryagain" = modal visible; "dead" = game over
+  private gameState: "waiting" | "countdown" | "playing" | "tryagain" | "dead" =
+    "waiting";
   private score = 0;
   private highScore = 0;
   private pulsePhase = 0;
   private freezeTimer = 0;
   private isMuted = false;
   private started = false; // guard to prevent double-start
+  private usedTryAgain = false; // only allow one per run
 
   /* ── countdown ─────────────────────────────────── */
   private countdownTimer = 0;
@@ -48,6 +52,7 @@ export class GameScene extends Phaser.Scene {
   private synth!: SynthAudioSystem;
   private music!: MusicPlayer;
   private bumpers!: BumperManager;
+  private tryAgainModal!: TryAgainModal;
 
   constructor() {
     super({ key: "GameScene" });
@@ -81,13 +86,16 @@ export class GameScene extends Phaser.Scene {
     this.synth.init(); // Pre-build audio graph + reverb IR now (avoids stutter on first note)
     this.music = new MusicPlayer();
     this.bumpers = new BumperManager(this.W, this.H);
+    this.tryAgainModal = new TryAgainModal(this.W, this.H);
 
     // Input
-    this.input.on("pointerdown", () => this.handleInput());
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) =>
+      this.handleInput(p),
+    );
     if (this.input.keyboard) {
-      this.input.keyboard.on("keydown-SPACE", () => this.handleInput());
-      this.input.keyboard.on("keydown-UP", () => this.handleInput());
-      this.input.keyboard.on("keydown-W", () => this.handleInput());
+      this.input.keyboard.on("keydown-SPACE", () => this.handleInput(null));
+      this.input.keyboard.on("keydown-UP", () => this.handleInput(null));
+      this.input.keyboard.on("keydown-W", () => this.handleInput(null));
     }
 
     // Start game SYNCHRONOUSLY — no dependency on async SDK
@@ -104,6 +112,9 @@ export class GameScene extends Phaser.Scene {
       this.tickCountdown(dt);
     } else if (this.gameState === "playing") {
       this.tickPlaying(dt);
+    } else if (this.gameState === "tryagain") {
+      this.tryAgainModal.update(dt);
+      this.tickVisuals(dt);
     }
 
     // Always render (background + fading particles even when dead/waiting)
@@ -134,6 +145,13 @@ export class GameScene extends Phaser.Scene {
         this.synth.setMuted(d.isMuted);
         this.music.setMuted(d.isMuted);
       });
+      sdk.onPurchaseComplete(({ success }: { success: boolean }) => {
+        if (success && this.gameState === "tryagain") {
+          this.resumeAfterTryAgain();
+        } else if (!success && this.gameState === "tryagain") {
+          this.tryAgainModal.setLoading(false);
+        }
+      });
     } catch (e) {
       console.warn("[BeatBounce] SDK error, continuing standalone", e);
     }
@@ -155,6 +173,8 @@ export class GameScene extends Phaser.Scene {
     this.score = 0;
     this.freezeTimer = 0;
     this.pulsePhase = 0;
+    this.usedTryAgain = false;
+    this.tryAgainModal.hide();
 
     // Reset orb — center of screen, STOPPED during countdown
     this.orb.reset(this.W / 2, this.H / 2, 0);
@@ -189,9 +209,24 @@ export class GameScene extends Phaser.Scene {
      INPUT
      ══════════════════════════════════════════════════ */
 
-  private handleInput(): void {
+  private handleInput(pointer: Phaser.Input.Pointer | null): void {
     // Start music on first user gesture (autoplay policy)
     this.music.start();
+
+    // ── TryAgain modal interaction ──
+    if (this.gameState === "tryagain" && pointer) {
+      // Convert screen coords → game coords (Phaser Scale Manager)
+      const gx = pointer.x;
+      const gy = pointer.y;
+      const hit = this.tryAgainModal.handlePointer(gx, gy);
+      if (hit === "try") {
+        this.purchaseTryAgain();
+      } else if (hit === "end") {
+        this.endGameFromModal();
+      }
+      return;
+    }
+
     if (this.gameState === "playing") {
       this.orb.jump();
     }
@@ -371,7 +406,6 @@ export class GameScene extends Phaser.Scene {
   /* ── death ──────────────────────────────────────── */
 
   private onDeath(): void {
-    this.gameState = "dead";
     this.orb.stop();
     this.freezeTimer = 0;
     this.particles.createDeath(this.orb.x, this.orb.y);
@@ -381,10 +415,74 @@ export class GameScene extends Phaser.Scene {
       this.saveHighScore();
     }
 
+    // Show try-again modal if not used yet this run
+    if (!this.usedTryAgain) {
+      this.gameState = "tryagain";
+      this.tryAgainModal.show({
+        onTryAgain: () => this.purchaseTryAgain(),
+        onEndGame: () => this.endGameFromModal(),
+      });
+      return;
+    }
+
+    // Already used try-again — go straight to game over
+    this.finalizeGameOver();
+  }
+
+  private finalizeGameOver(): void {
+    this.gameState = "dead";
+    this.tryAgainModal.hide();
     const sdk = (window as any).RemixSDK || (window as any).FarcadeSDK;
     if (sdk?.singlePlayer?.actions?.gameOver) {
       sdk.singlePlayer.actions.gameOver({ score: this.score });
     }
+  }
+
+  private endGameFromModal(): void {
+    this.finalizeGameOver();
+  }
+
+  private async purchaseTryAgain(): Promise<void> {
+    const sdk = (window as any).RemixSDK || (window as any).FarcadeSDK;
+    if (!sdk?.purchase) {
+      // No SDK → just resume for free (dev/standalone)
+      this.resumeAfterTryAgain();
+      return;
+    }
+
+    this.tryAgainModal.setLoading(true);
+    try {
+      const result = await sdk.purchase({ item: "try-again" });
+      if (result?.success) {
+        this.resumeAfterTryAgain();
+      } else {
+        this.tryAgainModal.setLoading(false);
+      }
+    } catch {
+      this.tryAgainModal.setLoading(false);
+    }
+  }
+
+  private resumeAfterTryAgain(): void {
+    this.usedTryAgain = true;
+    this.tryAgainModal.hide();
+
+    // Reset orb to safe center, keep score & difficulty
+    this.orb.reset(this.W / 2, this.H / 2, 0);
+    this.orb.vy = 0;
+    this.particles.clearAll();
+
+    // Regenerate spikes & bumpers (keep difficulty level)
+    this.spikes.generateAll();
+    this.bumpers.generate(0);
+    this.notes.spawn(this.spikes.leftSpikes, this.spikes.rightSpikes);
+
+    // Start countdown (score preserved)
+    this.gameState = "countdown";
+    this.countdownTimer = 0;
+    this.countdownNumber = 3;
+    this.countdownScale = 1;
+    this.synth.playCountdownTick(0);
   }
 
   /* ══════════════════════════════════════════════════
@@ -414,6 +512,11 @@ export class GameScene extends Phaser.Scene {
     // Countdown overlay
     if (this.gameState === "countdown") {
       this.renderCountdown(ctx);
+    }
+
+    // Try-again modal overlay
+    if (this.gameState === "tryagain") {
+      this.tryAgainModal.render(ctx, this.score);
     }
 
     this.canvasTexture.refresh();
